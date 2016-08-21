@@ -2,11 +2,11 @@
 
 Function ml_test()
 	STRUCT Multiload ml
-	ml.command    = "LoadWave/A/D/G/Q \"%P\""
+	ml.command    = "LoadWave/A/D/G/Q %P"
+	ml.dirhint    = "%B[3,inf]"
 	ml.filetype   = "Data Files"
 	ml.extensions = ".dat;.txt"
 	ml.delimiters = "_; "
-	FUNCREF Multiload_Hint ml.hintfunc = $""
 	ml.load(ml)
 End
 
@@ -16,7 +16,8 @@ End
 STRUCTURE Multiload
 	FUNCREF Multiload_Load loadfunc
 	FUNCREF Multiload_Hint hintfunc
-	String command
+	String command    // command to load waves
+	String dirhint    // evaluated as string for make folder hierarchy
 	String filetype   // just displayed in 'open file' dialogs
 	String extensions // list delimited with ;
 	String delimiters // list delimited with ;
@@ -88,10 +89,10 @@ Function MakeFolderAndLoad(path,words,command)
 End
 Function Load(path,command)
 	String path,command
-	command = ExpandExpr(command,"%P","%%",path)
-	command = ExpandExpr(command,"%D","%%",dirname(path)  )
-	command = ExpandExpr(command,"%B","%%",basename(path) )
-	command = ExpandExpr(command,"%E","%%",extension(path))
+	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
+	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
+	command = ExpandExpr(command,"%B","%%","\""+basename(path) +"\"")
+	command = ExpandExpr(command,"%E","%%","\""+extension(path)+"\"")
 	command = ReplaceString("%%",command,"%")
 	Execute/Z command
 //	print GetErrMessage(V_Flag)
@@ -221,8 +222,22 @@ End
 Function MaximumNumberOfWords(ml)
 	STRUCT MultiLoad &ml
 	Make/FREE/T/N=(ItemsInList(ml.filenames,"\r")) path=StringFromList(p,ml.filenames,"\r")
-	Make/FREE/N=(DimSize(path,0)) num=NumberOfWords(ml.hintfunc(basename(path)),ml.delimiters)
+	Make/FREE/N=(DimSize(path,0)) num=NumberOfWords(Hint(path,ml.dirhint),ml.delimiters)
 	return WaveMax(num)
+End
+Function/S Hint(path,command)
+	String path,command
+	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
+	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
+	command = ExpandExpr(command,"%B","%%","\""+basename(path) +"\"")
+	command = ExpandExpr(command,"%E","%%","\""+extension(path)+"\"")
+	command = ReplaceString("%%",command,"%")
+	DFREF here = GetDataFolderDFR()
+	SetDataFolder NewFreeDataFolder()
+	Execute/Z "String S_Hint="+command
+	SVAR S_Hint; String hint=S_Hint 
+	SetDataFolder here
+	return hint
 End
 Function/WAVE GetMatrixByNumberOfWords(ml,num)
 	STRUCT MultiLoad &ml; Variable num
@@ -239,14 +254,18 @@ Function/WAVE GetMatrixByNumberOfWords(ml,num)
 	return buf
 End
 
+// extension including dot (for exapmle, ".txt")
 Function/S extension(path)
 	String path
-	return ParseFilePath(4,path,":",0,0)
+	String ext=ParseFilePath(4,path,":",0,0)
+	return SelectString(strlen(ext),"","."+ext)
 End
+// filename without extension
 Function/S basename(path)
 	String path
 	return ParseFilePath(3,path,":",0,0)
 End
+// directory name
 Function/S dirname(path)
 	String path
 	return RemoveEnding(path,basename(path)+extension(path))
