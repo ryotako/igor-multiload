@@ -14,8 +14,6 @@ End
 // Structure ///////////////////////////
 ////////////////////////////////////////
 STRUCTURE Multiload
-	FUNCREF Multiload_Load loadfunc
-	FUNCREF Multiload_Hint hintfunc
 	String command    // command to load waves
 	String dirhint    // evaluated as string for make folder hierarchy
 	String filetype   // just displayed in 'open file' dialogs
@@ -25,10 +23,6 @@ STRUCTURE Multiload
 	FUNCREF Multiload load
 ENDSTRUCTURE
 
-Function/S Multiload_Hint(filename)
-	String filename
-	return filename
-End
 Function InitializeProperties(ml)
 	STRUCT MultiLoad &ml
 	if(NumType(strlen(ml.command)))
@@ -242,11 +236,11 @@ End
 Function/WAVE GetMatrixByNumberOfWords(ml,num)
 	STRUCT MultiLoad &ml; Variable num
 	Make/FREE/T/N=(ItemsInList(ml.filenames,"\r")) path=StringFromList(p,ml.filenames,"\r")
-	Extract/T/FREE path,path,num==NumberOfWords(ml.hintfunc(basename(path)),ml.delimiters)
+	Extract/T/FREE path,path,num==NumberOfWords(Hint(path,ml.dirhint),ml.delimiters)
 	Variable i,j,N=DimSize(path,0); Make/FREE/T/N=(N,num) buf
 	for(i=0;i<N;i+=1)
 		Note buf,path[i]
-		WAVE/T words = GetWords(ml.hintfunc(basename(path[i])),ml.delimiters)
+		WAVE/T words = GetWords(Hint(path[i],ml.dirhint),ml.delimiters)
 		for(j=0;j<num;j+=1)
 			buf[i][j] = words[j]
 		endfor
