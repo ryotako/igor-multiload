@@ -1,21 +1,70 @@
 #pragma ModuleName=Multiload
+strconstant Multiload_Menu="Multiload"
 
-Function ml_test()
+////////////////////////////////////////
+// Setting /////////////////////////////
+////////////////////////////////////////
+
+Function Multiload_Standard_Setting()
 	STRUCT Multiload ml
-	ml.command    = "LoadWave/A/D/G/Q %P"
-	ml.dirhint    = "%B[3,inf]"
+	ml.command    = "LoadWave/A/D/G/Q %P; KillVariables/Z V_Flag; KillStrings/Z S_waveNames"
+	ml.dirhint    = "%B" // filename used to make directory-hierarchy in Igor
 	ml.filetype   = "Data Files"
 	ml.extensions = ".dat;.txt"
 	ml.delimiters = "_; "
 	ml.load(ml)
 End
 
+
+////////////////////////////////////////
+// Menu ////////////////////////////////
+////////////////////////////////////////
+Menu StringFromList(0,Multiload_Menu)
+	RemoveListItem(0,Multiload_Menu)
+	Multiload#MenuItem(0),  /Q, MultiLoad#MenuCommand(0)
+	Multiload#MenuItem(1),  /Q, MultiLoad#MenuCommand(1)
+	Multiload#MenuItem(2),  /Q, MultiLoad#MenuCommand(2)
+	Multiload#MenuItem(3),  /Q, MultiLoad#MenuCommand(3)
+	Multiload#MenuItem(4),  /Q, MultiLoad#MenuCommand(4)
+	Multiload#MenuItem(5),  /Q, MultiLoad#MenuCommand(5)
+	Multiload#MenuItem(6),  /Q, MultiLoad#MenuCommand(6)
+	Multiload#MenuItem(7),  /Q, MultiLoad#MenuCommand(7)
+	Multiload#MenuItem(8),  /Q, MultiLoad#MenuCommand(8)
+	Multiload#MenuItem(9),  /Q, MultiLoad#MenuCommand(9)
+	Multiload#MenuItem(10), /Q, MultiLoad#MenuCommand(10)
+	Multiload#MenuItem(11), /Q, MultiLoad#MenuCommand(11)
+	Multiload#MenuItem(12), /Q, MultiLoad#MenuCommand(12)
+	Multiload#MenuItem(13), /Q, MultiLoad#MenuCommand(13)
+	Multiload#MenuItem(14), /Q, MultiLoad#MenuCommand(14)
+	Multiload#MenuItem(15), /Q, MultiLoad#MenuCommand(15)
+	Multiload#MenuItem(16), /Q, MultiLoad#MenuCommand(16)
+	Multiload#MenuItem(17), /Q, MultiLoad#MenuCommand(17)
+	Multiload#MenuItem(18), /Q, MultiLoad#MenuCommand(18)
+	Multiload#MenuItem(19), /Q, MultiLoad#MenuCommand(19)
+End
+static Function/S MenuItem(i)
+	Variable i
+	return ReplaceString("_",StringFromList(i,FunctionList("Multiload_*",";",""))[10,inf]," ")
+End
+static Function MenuCommand(i)
+	Variable i
+	Execute/Z StringFromList(i,FunctionList("Multiload_*",";",""))+"()"
+End
+
+
+// Special Characters for ml.command and ml.dirhint
+// %P : fullpath
+// %D : directory (path without filename)
+// %B : basename (filename without extension)
+// %E : extention (with dot. ".txt")
+
+
 ////////////////////////////////////////
 // Structure ///////////////////////////
 ////////////////////////////////////////
 STRUCTURE Multiload
 	String command    // command to load waves
-	String dirhint    // evaluated as string for make folder hierarchy
+	String dirhint    // evaluated as a string for make directory hierarchy
 	String filetype   // just displayed in 'open file' dialogs
 	String extensions // list delimited with ;
 	String delimiters // list delimited with ;
@@ -23,7 +72,7 @@ STRUCTURE Multiload
 	FUNCREF Multiload load
 ENDSTRUCTURE
 
-Function InitializeProperties(ml)
+static Function InitializeProperties(ml)
 	STRUCT MultiLoad &ml
 	if(NumType(strlen(ml.command)))
 		ml.command=""
@@ -71,7 +120,7 @@ Function Multiload(ml)
 End
 
 // Make a folder and load waves 
-Function MakeFolderAndLoad(path,words,command)
+static Function MakeFolderAndLoad(path,words,command)
 	String path,command; WAVE/T words
 	DFREF here = GetDataFolderDFR()
 	Variable i,N=DimSize(words,0)
@@ -81,7 +130,7 @@ Function MakeFolderAndLoad(path,words,command)
 	Load(path,command)
 	SetDataFolder here
 End
-Function Load(path,command)
+static Function Load(path,command)
 	String path,command
 	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
 	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
@@ -91,7 +140,7 @@ Function Load(path,command)
 	Execute/Z command
 //	print GetErrMessage(V_Flag)
 End
-Function/S ExpandExpr(s,expr,esc,repl)
+static Function/S ExpandExpr(s,expr,esc,repl)
 	String s,expr,esc,repl
 	String head,body,tail
 	SplitString/E="(.*?)("+esc+"|"+expr+")(.*)" s,head,body,tail
@@ -103,19 +152,19 @@ Function/S ExpandExpr(s,expr,esc,repl)
 		return head+repl+ExpandExpr(tail,expr,esc,repl)
 	endif
 End
-Function/S RenameToIgorFolderName(name)
+static Function/S RenameToIgorFolderName(name)
 	String name
 	name=ReplaceString(";" ,name,""); name=ReplaceString(":" ,name,"")
 	name=ReplaceString("\"",name,""); name=ReplaceString("'" ,name,"")
 	return Truncate(name)
 End
-Function/S Truncate(name)
+static Function/S Truncate(name)
 	String name
 	return name[0,30]
 End
 
 // Make message in an 'open file' dialog
-Function/S ExtensionFlag(ml)
+static Function/S ExtensionFlag(ml)
 	STRUCT Multiload &ml
 	if(ItemsInList(ml.extensions)==0)
 		return "All Files (*.*):.*;"
@@ -138,7 +187,7 @@ Function/S ExtensionFlag(ml)
 End
 
 // Joint rows whose items have the same order 
-Function/WAVE JoinRows(matrix)
+static Function/WAVE JoinRows(matrix)
 	WAVE/T matrix
 	Make/FREE/T/N=0 empty
 	WAVE/T buf=JoinRows_(empty,matrix)
@@ -149,7 +198,7 @@ Function/WAVE JoinRows(matrix)
 		return buf
 	endif
 End
-Function/WAVE JoinRows_(accum,matrix)
+static Function/WAVE JoinRows_(accum,matrix)
 	WAVE/T accum,matrix
 	Duplicate/FREE/T accum,buf
 	Duplicate/FREE/T/R=[0,inf][0,  0] matrix,head
@@ -175,7 +224,7 @@ Function/WAVE JoinRows_(accum,matrix)
 End
 
 // Sort rows by number of unique items
-Function/WAVE SortRows(matrix)
+static Function/WAVE SortRows(matrix)
 	WAVE/T matrix
 	Make/FREE/T/N=0 buf
 	Variable i,j
@@ -189,7 +238,7 @@ Function/WAVE SortRows(matrix)
 	endfor
 	return buf
 End
-Function NumberOfUniqueItems(w)
+static Function NumberOfUniqueItems(w)
 	WAVE/T w
 	if(DimSize(w,0))
 		Extract/T/FREE w,f,cmpstr(w[0],w)
@@ -200,7 +249,7 @@ End
 
 // Convert filenames into text wave matrix
 // (fullpaths are written in the wavenote)
-Function/WAVE GetWords(line,delimiters)
+static Function/WAVE GetWords(line,delimiters)
 	String line, delimiters
 	Variable i,N=ItemsInList(delimiters)
 	for(i=0;i<N;i+=1)
@@ -209,17 +258,17 @@ Function/WAVE GetWords(line,delimiters)
 	Make/FREE/T/N=(ItemsInList(line,"\r")) w=StringFromList(p,line,"\r")
 	return w
 End
-Function NumberOfWords(line,delimiters)
+static Function NumberOfWords(line,delimiters)
 	String line, delimiters
 	return DimSize(GetWords(line,delimiters),0)
 End
-Function MaximumNumberOfWords(ml)
+static Function MaximumNumberOfWords(ml)
 	STRUCT MultiLoad &ml
 	Make/FREE/T/N=(ItemsInList(ml.filenames,"\r")) path=StringFromList(p,ml.filenames,"\r")
 	Make/FREE/N=(DimSize(path,0)) num=NumberOfWords(Hint(path,ml.dirhint),ml.delimiters)
 	return WaveMax(num)
 End
-Function/S Hint(path,command)
+static Function/S Hint(path,command)
 	String path,command
 	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
 	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
@@ -233,7 +282,7 @@ Function/S Hint(path,command)
 	SetDataFolder here
 	return hint
 End
-Function/WAVE GetMatrixByNumberOfWords(ml,num)
+static Function/WAVE GetMatrixByNumberOfWords(ml,num)
 	STRUCT MultiLoad &ml; Variable num
 	Make/FREE/T/N=(ItemsInList(ml.filenames,"\r")) path=StringFromList(p,ml.filenames,"\r")
 	Extract/T/FREE path,path,num==NumberOfWords(Hint(path,ml.dirhint),ml.delimiters)
@@ -249,18 +298,18 @@ Function/WAVE GetMatrixByNumberOfWords(ml,num)
 End
 
 // extension including dot (for exapmle, ".txt")
-Function/S extension(path)
+static Function/S extension(path)
 	String path
 	String ext=ParseFilePath(4,path,":",0,0)
 	return SelectString(strlen(ext),"","."+ext)
 End
 // filename without extension
-Function/S basename(path)
+static Function/S basename(path)
 	String path
 	return ParseFilePath(3,path,":",0,0)
 End
 // directory name
-Function/S dirname(path)
+static Function/S dirname(path)
 	String path
 	return RemoveEnding(path,basename(path)+extension(path))
 End
