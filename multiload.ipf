@@ -72,13 +72,13 @@ Function Multiload(ml)
 		for(j=0;j<DimSize(matrix,0);j+=1) // Load each file
 			Make/FREE/T/N=(DimSize(matrix,1)) words = matrix[j][p]
 			FUNCREF Multiload_load func = ml.loadfunc
-			Load(path[j],words,func)
+			MakeFolderAndLoad(path[j],words,func)
 		endfor
 	endfor
 End
 
-
-Function Load(path,words,loadfunc)
+// Make a folder and load waves 
+Function MakeFolderAndLoad(path,words,loadfunc)
 	String path; WAVE/T words; FUNCREF Multiload_Load loadfunc
 	DFREF here = GetDataFolderDFR()
 	Variable i,N=DimSize(words,0)
@@ -92,9 +92,12 @@ Function/S RenameToIgorFolderName(name)
 	String name
 	name=ReplaceString(";" ,name,""); name=ReplaceString(":" ,name,"")
 	name=ReplaceString("\"",name,""); name=ReplaceString("'" ,name,"")
+	return Truncate(name)
+End
+Function/S Truncate(name)
+	String name
 	return name[0,30]
-End 
-
+End
 
 // Make message in an 'open file' dialog
 Function/S ExtensionFlag(ml)
@@ -181,7 +184,7 @@ Function NumberOfUniqueItems(w)
 End
 
 // Convert filenames into text wave matrix
-// fullpaths are written in the wavenote
+// (fullpaths are written in the wavenote)
 Function/WAVE GetWords(line,delimiters)
 	String line, delimiters
 	Variable i,N=ItemsInList(delimiters)
