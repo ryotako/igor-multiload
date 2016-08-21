@@ -2,11 +2,11 @@
 
 Function ml_test()
 	STRUCT Multiload ml
+	ml.command    = "LoadWave/A/D/G/Q %P"
+	ml.dirhint    = "%B[3,inf]"
 	ml.filetype   = "Data Files"
 	ml.extensions = ".dat;.txt"
 	ml.delimiters = "_; "
-	FUNCREF Multiload_Hint ml.hintfunc = $""
-	FUNCREF Multiload_Load ml.loadfunc = $""
 	ml.load(ml)
 End
 
@@ -14,8 +14,8 @@ End
 // Structure ///////////////////////////
 ////////////////////////////////////////
 STRUCTURE Multiload
-	FUNCREF Multiload_Load loadfunc
-	FUNCREF Multiload_Hint hintfunc
+	String command    // command to load waves
+	String dirhint    // evaluated as string for make folder hierarchy
 	String filetype   // just displayed in 'open file' dialogs
 	String extensions // list delimited with ;
 	String delimiters // list delimited with ;
@@ -23,17 +23,11 @@ STRUCTURE Multiload
 	FUNCREF Multiload load
 ENDSTRUCTURE
 
-Function Multiload_Load(path)
-	String path
-	String cmd; sprintf cmd,"LoadWave/A/D/G/Q \"%s\"", path
-	Execute/Z cmd
-End
-Function/S Multiload_Hint(filename)
-	String filename
-	return filename
-End
 Function InitializeProperties(ml)
 	STRUCT MultiLoad &ml
+	if(NumType(strlen(ml.command)))
+		ml.command=""
+	endif
 	if(NumType(strlen(ml.filetype)))
 		ml.filetype=""
 	endif
@@ -71,22 +65,43 @@ Function Multiload(ml)
 		
 		for(j=0;j<DimSize(matrix,0);j+=1) // Load each file
 			Make/FREE/T/N=(DimSize(matrix,1)) words = matrix[j][p]
-			FUNCREF Multiload_load func = ml.loadfunc
-			MakeFolderAndLoad(path[j],words,func)
+			MakeFolderAndLoad(path[j],words,ml.command)
 		endfor
 	endfor
 End
 
 // Make a folder and load waves 
-Function MakeFolderAndLoad(path,words,loadfunc)
-	String path; WAVE/T words; FUNCREF Multiload_Load loadfunc
+Function MakeFolderAndLoad(path,words,command)
+	String path,command; WAVE/T words
 	DFREF here = GetDataFolderDFR()
 	Variable i,N=DimSize(words,0)
 	for(i=0;i<N;i+=1)
 		Execute/Z/Q "NewDataFolder/O/S "+PossiblyQuoteName(RenameToIgorFolderName(words[i]))
-	endfor	
-	loadfunc(path)
+	endfor
+	Load(path,command)
 	SetDataFolder here
+End
+Function Load(path,command)
+	String path,command
+	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
+	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
+	command = ExpandExpr(command,"%B","%%","\""+basename(path) +"\"")
+	command = ExpandExpr(command,"%E","%%","\""+extension(path)+"\"")
+	command = ReplaceString("%%",command,"%")
+	Execute/Z command
+//	print GetErrMessage(V_Flag)
+End
+Function/S ExpandExpr(s,expr,esc,repl)
+	String s,expr,esc,repl
+	String head,body,tail
+	SplitString/E="(.*?)("+esc+"|"+expr+")(.*)" s,head,body,tail
+	if(strlen(body)==0)
+		return s
+	elseif(GrepString(body,esc))
+		return head+esc +ExpandExpr(tail,expr,esc,repl)
+	else
+		return head+repl+ExpandExpr(tail,expr,esc,repl)
+	endif
 End
 Function/S RenameToIgorFolderName(name)
 	String name
@@ -102,7 +117,7 @@ End
 // Make message in an 'open file' dialog
 Function/S ExtensionFlag(ml)
 	STRUCT Multiload &ml
-	if(ItemsInList(ml.extensions))
+	if(ItemsInList(ml.extensions)==0)
 		return "All Files (*.*):.*;"
 	endif
 	Variable i,N=ItemsInList(ml.extensions); String exts1="",exts2=""
@@ -201,24 +216,51 @@ End
 Function MaximumNumberOfWords(ml)
 	STRUCT MultiLoad &ml
 	Make/FREE/T/N=(ItemsInList(ml.filenames,"\r")) path=StringFromList(p,ml.filenames,"\r")
-	Make/FREE/N=(DimSize(path,0)) num=NumberOfWords(ml.hintfunc(basename(path)),ml.delimiters)
+	Make/FREE/N=(DimSize(path,0)) num=NumberOfWords(Hint(path,ml.dirhint),ml.delimiters)
 	return WaveMax(num)
+End
+Function/S Hint(path,command)
+	String path,command
+	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
+	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
+	command = ExpandExpr(command,"%B","%%","\""+basename(path) +"\"")
+	command = ExpandExpr(command,"%E","%%","\""+extension(path)+"\"")
+	command = ReplaceString("%%",command,"%")
+	DFREF here = GetDataFolderDFR()
+	SetDataFolder NewFreeDataFolder()
+	Execute/Z "String S_Hint="+command
+	SVAR S_Hint; String hint=S_Hint 
+	SetDataFolder here
+	return hint
 End
 Function/WAVE GetMatrixByNumberOfWords(ml,num)
 	STRUCT MultiLoad &ml; Variable num
 	Make/FREE/T/N=(ItemsInList(ml.filenames,"\r")) path=StringFromList(p,ml.filenames,"\r")
-	Extract/T/FREE path,path,num==NumberOfWords(ml.hintfunc(basename(path)),ml.delimiters)
+	Extract/T/FREE path,path,num==NumberOfWords(Hint(path,ml.dirhint),ml.delimiters)
 	Variable i,j,N=DimSize(path,0); Make/FREE/T/N=(N,num) buf
 	for(i=0;i<N;i+=1)
 		Note buf,path[i]
-		WAVE/T words = GetWords(ml.hintfunc(basename(path[i])),ml.delimiters)
+		WAVE/T words = GetWords(Hint(path[i],ml.dirhint),ml.delimiters)
 		for(j=0;j<num;j+=1)
 			buf[i][j] = words[j]
 		endfor
 	endfor
 	return buf
 End
+
+// extension including dot (for exapmle, ".txt")
+Function/S extension(path)
+	String path
+	String ext=ParseFilePath(4,path,":",0,0)
+	return SelectString(strlen(ext),"","."+ext)
+End
+// filename without extension
 Function/S basename(path)
 	String path
 	return ParseFilePath(3,path,":",0,0)
+End
+// directory name
+Function/S dirname(path)
+	String path
+	return RemoveEnding(path,basename(path)+extension(path))
 End
