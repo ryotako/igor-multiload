@@ -10,17 +10,19 @@ Function ml_test()
 	ml.load(ml)
 End
 
-// Implement
-
+////////////////////////////////////////
+// Structure ///////////////////////////
+////////////////////////////////////////
 STRUCTURE Multiload
 	FUNCREF Multiload_Load loadfunc
 	FUNCREF Multiload_Hint hintfunc
-	String filetype
+	String filetype   // just displayed in 'open file' dialogs
 	String extensions // list delimited with ;
 	String delimiters // list delimited with ;
 	String filenames  // list delimited with CR
 	FUNCREF Multiload load
 ENDSTRUCTURE
+
 Function Multiload_Load(path)
 	String path
 	String cmd; sprintf cmd,"LoadWave/A/D/G/Q \"%s\"", path
@@ -46,7 +48,9 @@ Function InitializeProperties(ml)
 	endif	
 End
 
-
+////////////////////////////////////////
+// Implement ///////////////////////////
+////////////////////////////////////////
 Function Multiload(ml)
 	STRUCT Multiload &ml
 	InitializeProperties(ml)
