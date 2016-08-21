@@ -2,11 +2,11 @@
 
 Function ml_test()
 	STRUCT Multiload ml
+	ml.command    = "LoadWave/A/D/G/Q \"%P\""
 	ml.filetype   = "Data Files"
 	ml.extensions = ".dat;.txt"
 	ml.delimiters = "_; "
 	FUNCREF Multiload_Hint ml.hintfunc = $""
-	FUNCREF Multiload_Load ml.loadfunc = $""
 	ml.load(ml)
 End
 
@@ -16,6 +16,7 @@ End
 STRUCTURE Multiload
 	FUNCREF Multiload_Load loadfunc
 	FUNCREF Multiload_Hint hintfunc
+	String command
 	String filetype   // just displayed in 'open file' dialogs
 	String extensions // list delimited with ;
 	String delimiters // list delimited with ;
@@ -23,17 +24,15 @@ STRUCTURE Multiload
 	FUNCREF Multiload load
 ENDSTRUCTURE
 
-Function Multiload_Load(path)
-	String path
-	String cmd; sprintf cmd,"LoadWave/A/D/G/Q \"%s\"", path
-	Execute/Z cmd
-End
 Function/S Multiload_Hint(filename)
 	String filename
 	return filename
 End
 Function InitializeProperties(ml)
 	STRUCT MultiLoad &ml
+	if(NumType(strlen(ml.command)))
+		ml.command=""
+	endif
 	if(NumType(strlen(ml.filetype)))
 		ml.filetype=""
 	endif
@@ -71,22 +70,43 @@ Function Multiload(ml)
 		
 		for(j=0;j<DimSize(matrix,0);j+=1) // Load each file
 			Make/FREE/T/N=(DimSize(matrix,1)) words = matrix[j][p]
-			FUNCREF Multiload_load func = ml.loadfunc
-			MakeFolderAndLoad(path[j],words,func)
+			MakeFolderAndLoad(path[j],words,ml.command)
 		endfor
 	endfor
 End
 
 // Make a folder and load waves 
-Function MakeFolderAndLoad(path,words,loadfunc)
-	String path; WAVE/T words; FUNCREF Multiload_Load loadfunc
+Function MakeFolderAndLoad(path,words,command)
+	String path,command; WAVE/T words
 	DFREF here = GetDataFolderDFR()
 	Variable i,N=DimSize(words,0)
 	for(i=0;i<N;i+=1)
 		Execute/Z/Q "NewDataFolder/O/S "+PossiblyQuoteName(RenameToIgorFolderName(words[i]))
-	endfor	
-	loadfunc(path)
+	endfor
+	Load(path,command)
 	SetDataFolder here
+End
+Function Load(path,command)
+	String path,command
+	command = ExpandExpr(command,"%P","%%",path)
+	command = ExpandExpr(command,"%D","%%",dirname(path)  )
+	command = ExpandExpr(command,"%B","%%",basename(path) )
+	command = ExpandExpr(command,"%E","%%",extension(path))
+	command = ReplaceString("%%",command,"%")
+	Execute/Z command
+//	print GetErrMessage(V_Flag)
+End
+Function/S ExpandExpr(s,expr,esc,repl)
+	String s,expr,esc,repl
+	String head,body,tail
+	SplitString/E="(.*?)("+esc+"|"+expr+")(.*)" s,head,body,tail
+	if(strlen(body)==0)
+		return s
+	elseif(GrepString(body,esc))
+		return head+esc +ExpandExpr(tail,expr,esc,repl)
+	else
+		return head+repl+ExpandExpr(tail,expr,esc,repl)
+	endif
 End
 Function/S RenameToIgorFolderName(name)
 	String name
@@ -218,7 +238,16 @@ Function/WAVE GetMatrixByNumberOfWords(ml,num)
 	endfor
 	return buf
 End
+
+Function/S extension(path)
+	String path
+	return ParseFilePath(4,path,":",0,0)
+End
 Function/S basename(path)
 	String path
 	return ParseFilePath(3,path,":",0,0)
+End
+Function/S dirname(path)
+	String path
+	return RemoveEnding(path,basename(path)+extension(path))
 End
