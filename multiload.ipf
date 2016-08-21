@@ -53,10 +53,11 @@ End
 
 
 // Special Characters for ml.command and ml.dirhint
-// %P : fullpath
-// %D : directory (path without filename)
 // %B : basename (filename without extension)
-// %E : extention (with dot. ".txt")
+// %D : directory (path without filename)
+// %E : extention
+// %F : filename (=%B+"."+%E)
+// %P : fullpath
 
 
 ////////////////////////////////////////
@@ -132,10 +133,11 @@ static Function MakeFolderAndLoad(path,words,command)
 End
 static Function Load(path,command)
 	String path,command
-	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
-	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
 	command = ExpandExpr(command,"%B","%%","\""+basename(path) +"\"")
+	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
 	command = ExpandExpr(command,"%E","%%","\""+extension(path)+"\"")
+	command = ExpandExpr(command,"%F","%%","\""+filename(path) +"\"")
+	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
 	command = ReplaceString("%%",command,"%")
 	Execute/Z command
 //	print GetErrMessage(V_Flag)
@@ -270,10 +272,11 @@ static Function MaximumNumberOfWords(ml)
 End
 static Function/S Hint(path,command)
 	String path,command
-	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
-	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
 	command = ExpandExpr(command,"%B","%%","\""+basename(path) +"\"")
+	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
 	command = ExpandExpr(command,"%E","%%","\""+extension(path)+"\"")
+	command = ExpandExpr(command,"%F","%%","\""+filename(path) +"\"")
+	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
 	command = ReplaceString("%%",command,"%")
 	DFREF here = GetDataFolderDFR()
 	SetDataFolder NewFreeDataFolder()
@@ -297,19 +300,23 @@ static Function/WAVE GetMatrixByNumberOfWords(ml,num)
 	return buf
 End
 
-// extension including dot (for exapmle, ".txt")
+// extension
 static Function/S extension(path)
 	String path
-	String ext=ParseFilePath(4,path,":",0,0)
-	return SelectString(strlen(ext),"","."+ext)
+	return ParseFilePath(4,path,":",0,0)
 End
 // filename without extension
 static Function/S basename(path)
 	String path
 	return ParseFilePath(3,path,":",0,0)
 End
+// filename
+static Function/S filename(path)
+	String path
+	return basename(path)+"."+extension(path)
+End
 // directory name
 static Function/S dirname(path)
 	String path
-	return RemoveEnding(path,basename(path)+extension(path))
+	return RemoveEnding(path,filename(path))
 End
