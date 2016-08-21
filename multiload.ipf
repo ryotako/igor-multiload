@@ -102,7 +102,7 @@ End
 // Make message in an 'open file' dialog
 Function/S ExtensionFlag(ml)
 	STRUCT Multiload &ml
-	if(ItemsInList(ml.extensions))
+	if(ItemsInList(ml.extensions)==0)
 		return "All Files (*.*):.*;"
 	endif
 	Variable i,N=ItemsInList(ml.extensions); String exts1="",exts2=""
