@@ -5,6 +5,7 @@ strconstant Multiload_Menu="Multiload"
 // Setting /////////////////////////////
 ////////////////////////////////////////
 
+// Menu: Standard Setting (*.dat, *.txt)
 Function Multiload_Standard_Setting()
 	STRUCT Multiload ml
 	ml.command    = "LoadWave/A/D/G/Q %P; KillVariables/Z V_Flag; KillStrings/Z S_waveNames"
@@ -13,6 +14,36 @@ Function Multiload_Standard_Setting()
 	ml.extensions = ".dat;.txt"
 	ml.delimiters = "_; "
 	ml.load(ml)
+End
+
+// Menu: General Setting (Dialog)
+Function Multiload_General_Setting()
+	STRUCT Multiload ml
+	String command= "LoadWave/A/D/G/Q %P; KillVariables/Z V_Flag; KillStrings/Z S_waveNames"
+	Prompt command, "Command for loading waves"
+	String dirhint= "%B"    
+	Prompt dirhint, "String for creating directory tree"
+	String filetype= "Data Files"  
+	Prompt filetype, "File type"
+	String extensions= ".dat;.txt"
+	Prompt extensions, "Extensions (list)"
+	String delimiters= " ;_"
+	Prompt delimiters, "Delimiters of a file name (list)"
+	String help = "Special characters\r"
+	help+= "%B : basename (filename without extension)\r"
+	help+= "%D : directory (path without filename)\r"
+	help+= "%E : extention\r"
+	help+= "%F : filename (=%B+\".\"+%E)\r"
+	help+= "%P : fullpath\r"
+	DoPrompt/HELP=help "Open Files",command,dirhint,filetype,extensions,delimiters
+	if(!V_Flag)
+		ml.command    = command
+		ml.dirhint    = dirhint
+		ml.filetype   = filetype
+		ml.extensions = extensions
+		ml.delimiters = delimiters
+		ml.load(ml)
+	endif
 End
 
 
@@ -44,7 +75,13 @@ Menu StringFromList(0,Multiload_Menu)
 End
 static Function/S MenuItem(i)
 	Variable i
-	return ReplaceString("_",StringFromList(i,FunctionList("Multiload_*",";",""))[10,inf]," ")
+	String fun = StringFromList(i,FunctionList("Multiload_*",";","")), buf
+	SplitString/E="(?m)^//\\s*Menu:\\s*(.*)$" ReplaceString("\r",ProcedureText(fun,-1),"\n"), buf
+	if(strlen(buf))
+		return "\M0"+buf
+	else
+		return ReplaceString("_",fun[10,inf]," ")
+	endif
 End
 static Function MenuCommand(i)
 	Variable i
