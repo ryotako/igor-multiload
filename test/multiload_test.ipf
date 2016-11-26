@@ -2,6 +2,9 @@
 #include "multiload"
 
 static Function setup()
+	if(DataFolderExists("root:Packages:TestMultiload"))
+		KillDataFolder root:Packages:TestMultiload	
+	endif
 	NewDataFolder/O root:Packages
 	NewDataFolder/O root:Packages:TestMultiload
 	cd root:Packages:TestMultiload
@@ -9,25 +12,53 @@ End
 
 static Function teardown()
 	cd root:
-	KillDataFolder root:Packages:TestMultiload
+//	KillDataFolder root:Packages:TestMultiload
 End
 
 Function TestMultiLoad()
 	setup()
+	
 	String path = RemoveEnding(FunctionPath(""), "multiload_test.ipf")
 	Make/FREE/T/N=6 files = path
 	files[0] += "sampleA_100K_a-axis.dat"
 	files[1] += "sampleA_200K_a-axis.dat"
 	files[2] += "sampleA_300K_a-axis.dat"
-	files[3] += "sampleA_100K_a-axis.dat"
-	files[4] += "sampleA_200K_a-axis.dat"
-	files[5] += "sampleA_300K_a-axis.dat"
-	
-	
+	files[3] += "sampleB_100K_a-axis.dat"
+	files[4] += "sampleB_200K_a-axis.dat"
+	files[5] += "sampleB_300K_a-axis.dat"
 	multiload#MultiLoadImplement(files, {"_"}, "LoadWave/A/D/G/Q %P", "%B")
 	
+	eq_var(DataFolderExists(":'a-axis'"),1)
+	eq_var(DataFolderExists(":'a-axis':sampleA"),1)
+	eq_var(DataFolderExists(":'a-axis':sampleA:'100K'"),1)
+	eq_var(WaveExists($":'a-axis':sampleA:'100K':wave0"),1)
+	eq_var(WaveExists($":'a-axis':sampleA:'100K':wave1"),1)	
+	eq_var(WaveExists($":'a-axis':sampleA:'100K':wave2"),0)	
+	eq_var(DataFolderExists(":'a-axis':sampleA:'200K'"),1)
+	eq_var(WaveExists($":'a-axis':sampleA:'200K':wave0"),1)
+	eq_var(WaveExists($":'a-axis':sampleA:'200K':wave1"),1)
+	eq_var(WaveExists($":'a-axis':sampleA:'200K':wave2"),0)
+	eq_var(DataFolderExists(":'a-axis':sampleA:'300K'"),1)
+	eq_var(WaveExists($":'a-axis':sampleA:'300K':wave0"),1)
+	eq_var(WaveExists($":'a-axis':sampleA:'300K':wave1"),1)
+	eq_var(WaveExists($":'a-axis':sampleA:'300K':wave2"),0)
+
+	eq_var(DataFolderExists(":'a-axis':sampleB"),1)
+	eq_var(DataFolderExists(":'a-axis':sampleB"),1)
+	eq_var(DataFolderExists(":'a-axis':sampleB:'100K'"),1)
+	eq_var(WaveExists($":'a-axis':sampleB:'100K':wave0"),1)
+	eq_var(WaveExists($":'a-axis':sampleB:'100K':wave1"),1)	
+	eq_var(WaveExists($":'a-axis':sampleB:'100K':wave2"),0)	
+	eq_var(DataFolderExists(":'a-axis':sampleB:'200K'"),1)
+	eq_var(WaveExists($":'a-axis':sampleB:'200K':wave0"),1)
+	eq_var(WaveExists($":'a-axis':sampleB:'200K':wave1"),1)	
+	eq_var(WaveExists($":'a-axis':sampleB:'200K':wave2"),0)	
+	eq_var(DataFolderExists(":'a-axis':sampleB:'300K'"),1)
+	eq_var(WaveExists($":'a-axis':sampleB:'300K':wave0"),1)
+	eq_var(WaveExists($":'a-axis':sampleB:'300K':wave1"),1)	
+	eq_var(WaveExists($":'a-axis':sampleB:'300K':wave2"),0)	
 	
-//	teardown()
+	teardown()
 End
 
 Function TestPathUtils()

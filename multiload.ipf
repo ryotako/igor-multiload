@@ -1,9 +1,9 @@
 #pragma ModuleName=Multiload
 strconstant Multiload_Menu="Multiload"
 
-////////////////////////////////////////
-// Setting /////////////////////////////
-////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// Prototype Settings //////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 // Menu: Standard Setting (*.dat, *.txt)
 Function Multiload_Standard_Setting()
@@ -46,9 +46,18 @@ Function Multiload_General_Setting()
 	endif
 End
 
-////////////////////////////////////////
-// Menu ////////////////////////////////
-////////////////////////////////////////
+// <<NOTE>>
+// Special Characters for ml.command and ml.dirhint
+// %B : basename (filename without extension)
+// %D : directory (path without filename)
+// %E : extention
+// %F : filename (=%B+"."+%E)
+// %P : fullpath
+
+////////////////////////////////////////////////////////////////////////////////
+// Menu ////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 Menu StringFromList(0,Multiload_Menu)
 	RemoveListItem(0,Multiload_Menu)
 	Multiload#MenuItem(0),  /Q, MultiLoad#MenuCommand(0)
@@ -89,29 +98,23 @@ static Function MenuCommand(i)
 	Execute/Z StringFromList(i,FunctionList("Multiload_*",";",""))+"()"
 End
 
-// Special Characters for ml.command and ml.dirhint
-// %B : basename (filename without extension)
-// %D : directory (path without filename)
-// %E : extention
-// %F : filename (=%B+"."+%E)
-// %P : fullpath
+////////////////////////////////////////////////////////////////////////////////
+// Structure ///////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-
-////////////////////////////////////////
-// Structure ///////////////////////////
-////////////////////////////////////////
 STRUCTURE Multiload
-	String command    // command to load waves
-	String dirhint    // evaluated as a string for make directory hierarchy
-	String filetype   // just displayed in 'open file' dialogs
-	String extensions // list delimited with ;
-	String delimiters // list delimited with ;
-	FUNCREF Multiload load
+String command    // command to load waves
+String dirhint    // evaluated as a string for make directory hierarchy
+String filetype   // just displayed in 'open file' dialogs
+String extensions // list delimited with ;
+String delimiters // list delimited with ;
+FUNCREF Multiload load
 ENDSTRUCTURE
 
-////////////////////////////////////////
-// Implement ///////////////////////////
-////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// Implementation //////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 Function Multiload(ml)
 	STRUCT Multiload &ml
 	
@@ -160,9 +163,11 @@ static Function MultiLoadImplement(files, dels, cmd, hint)
 	Variable loaded, i
 	for(loaded = 0, i = 0 ; loaded < DimSize(files, 0) ;i += 1)
 		WAVE/T matrix = JoinRows( SortRows( FileNameMatrix(i, files, dels, hint) ) )
+		loaded += ItemsInList(note(matrix),"\r")
 		
 		Variable j,N = DimSize(matrix, 1)
 		for(j = 0; j < N; j += 1)
+		
 			// Make a data folder
 			Make/FREE/T/N=(DimSize(matrix, 0)) folders = matrix[p][j]
 			String folder = MakeDataFolder(folders)
@@ -173,10 +178,9 @@ static Function MultiLoadImplement(files, dels, cmd, hint)
 			// Load the file
 			String path = StringFromList(j,note(matrix),"\r")
 			Execute/Z ExpandExpr(cmd, path)
-			print GetErrMessage(V_Flag)
-			
+			print GetErrMessage(V_Flag)	
+					
 			SetDataFolder here
-			loaded += 1		
 		endfor
 	endfor
 End
@@ -188,20 +192,21 @@ static Function/S MakeDataFolder(folders)
 	Variable i,N=DimSize(folders,0)
 	for(i=0;i<N;i+=1)
 		Execute/Z/Q "NewDataFolder/O/S :"+PossiblyQuoteName(RenameToIgorFolderName(folders[i]))
-		print "NewDataFolder/O/S :"+PossiblyQuoteName(RenameToIgorFolderName(folders[i]))
 	endfor
 	String path = GetDataFolder(1)
 	SetDataFolder here
 	return path
 End
 
-
+// Replace characters which are unavailable for Igor Pro folder path
 static Function/S RenameToIgorFolderName(name)
 	String name
 	name=ReplaceString(";" ,name,""); name=ReplaceString(":" ,name,"")
 	name=ReplaceString("\"",name,""); name=ReplaceString("'" ,name,"")
 	return Truncate(name)
 End
+
+// Shorten too long path name
 static Function/S Truncate(name)
 	String name
 	return name[0,30]
@@ -229,6 +234,10 @@ static Function/S ExtFlag(exts, type)
 	sprintf msg, "%s(%s):%s;All Files (*.*):.*;", msg, exts1, exts2
 	return msg
 End
+
+////////////////////////////////////////////////////////////////////////////////
+// Functions to sort elements of pathnames as matrix ///////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 // Joint rows whose items have the same order 
 static Function/WAVE JoinRows(matrix)
@@ -280,6 +289,7 @@ static Function/WAVE SortRows(matrix)
 	return sorted
 End
 
+// Remove duplicate values
 static Function/WAVE Unique(w)
 	WAVE/T w
 	if(DimSize(w,0))
@@ -292,9 +302,7 @@ static Function/WAVE Unique(w)
 	return f
 End
 
-
 // Convert filenames into text wave matrix
-
 static Function/WAVE FileNameMatrix(num, files, dels, hint)
 	Variable num; WAVE/T files, dels; String hint
 	Make/FREE/T/N=0 matrix
@@ -309,6 +317,7 @@ static Function/WAVE FileNameMatrix(num, files, dels, hint)
 	return matrix
 End
 
+// Split a string with delimiters
 static Function/WAVE SplitLine(line, dels)
 	String line; WAVE/T dels
 	Variable i,N = DimSize(dels,0)
@@ -319,20 +328,24 @@ static Function/WAVE SplitLine(line, dels)
 	return w
 End
 
+////////////////////////////////////////////////////////////////////////////////
+// Functions about pathname manipulation ///////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 // Evaluate expression as a string 
 static Function/S EvalString(expr)
 	String expr
- 	DFREF here = GetDataFolderDFR()
- 	SetDataFolder NewFreeDataFolder()
- 	try
+	DFREF here = GetDataFolderDFR()
+	SetDataFolder NewFreeDataFolder()
+	try
 		Execute/Z "String S_Value="+expr
-	 	SVAR S_Value
- 		String s = S_Value 
- 		SetDataFolder here
- 	catch
-	 	SetDataFolder here	
- 	endtry
- 	return s
+		SVAR S_Value
+		String s = S_Value 
+		SetDataFolder here
+	catch
+		SetDataFolder here	
+	endtry
+	return s
 End
 
 // Expand special characters
