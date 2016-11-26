@@ -46,7 +46,6 @@ Function Multiload_General_Setting()
 	endif
 End
 
-
 ////////////////////////////////////////
 // Menu ////////////////////////////////
 ////////////////////////////////////////
@@ -73,6 +72,7 @@ Menu StringFromList(0,Multiload_Menu)
 	Multiload#MenuItem(18), /Q, MultiLoad#MenuCommand(18)
 	Multiload#MenuItem(19), /Q, MultiLoad#MenuCommand(19)
 End
+
 static Function/S MenuItem(i)
 	Variable i
 	String fun = StringFromList(i,FunctionList("Multiload_*",";","")), buf
@@ -83,11 +83,11 @@ static Function/S MenuItem(i)
 		return ReplaceString("_",fun[10,inf]," ")
 	endif
 End
+
 static Function MenuCommand(i)
 	Variable i
 	Execute/Z StringFromList(i,FunctionList("Multiload_*",";",""))+"()"
 End
-
 
 // Special Characters for ml.command and ml.dirhint
 // %B : basename (filename without extension)
@@ -106,91 +106,96 @@ STRUCTURE Multiload
 	String filetype   // just displayed in 'open file' dialogs
 	String extensions // list delimited with ;
 	String delimiters // list delimited with ;
-	String filenames  // list delimited with CR
 	FUNCREF Multiload load
 ENDSTRUCTURE
-
-static Function InitializeProperties(ml)
-	STRUCT MultiLoad &ml
-	if(NumType(strlen(ml.command)))
-		ml.command=""
-	endif
-	if(NumType(strlen(ml.filetype)))
-		ml.filetype=""
-	endif
-	if(NumType(strlen(ml.extensions)))
-		ml.extensions=""
-	endif
-	if(NumType(strlen(ml.delimiters)))
-		ml.delimiters=""
-	endif	
-	if(NumType(strlen(ml.filenames)))
-		ml.filenames=""
-	endif	
-End
 
 ////////////////////////////////////////
 // Implement ///////////////////////////
 ////////////////////////////////////////
 Function Multiload(ml)
 	STRUCT Multiload &ml
-	InitializeProperties(ml)
+	
+	// Initialize fileds of ml
+	String cmd = ""
+	if(strlen(ml.command))
+		cmd = ml.command
+	endif
 
+	String type = ""
+	if(strlen(ml.filetype))
+		type = ml.filetype
+	endif
+
+	String hint = ""
+	if(strlen(ml.dirhint))
+		hint = ml.dirhint
+	endif
+	
+	Make/FREE/T/N=0 exts
+	if(strlen(ml.extensions))
+		InsertPoints 0, ItemsInList(ml.extensions), exts
+		exts = StringFromList(p,ml.extensions)
+	endif
+
+	Make/FREE/T/N=0 dels
+	if(strlen(ml.delimiters))
+		InsertPoints 0, ItemsInList(ml.delimiters), dels
+		dels = StringFromList(p,ml.delimiters)
+	endif
+
+	
 	// Get filenames by dialog	
-	Open/D/R/MULT=1/F=ExtensionFlag(ml) refnum
-	if(strlen(S_FileName)==0)
+	Open/D/R/MULT=1/F=ExtFlag(exts, type) refnum
+	if(strlen(S_FileName) == 0)
 		return NaN
 	endif
-	ml.filenames = S_FileName
+	Make/FREE/T/N=(ItemsInList(S_FileName,"\r")) files = StringFromList(p, S_FileName, "\r")
 	
-	Variable i,j,N=MaximumNumberOfWords(ml)
-	for(i=1;i<=N;i+=1) // Pick up names which has same number of items
+	MultiLoadImplement(files, dels, cmd, hint)
+End
 
-		WAVE/T buf = GetMatrixByNumberOfWords(ml,i)
-		WAVE/T matrix = JoinRows( SortRows( buf ) )
-		Make/FREE/T/N=(ItemsInList(note(buf),"\r")) path = StringFromList(p,note(buf),"\r")
+static Function MultiLoadImplement(files, dels, cmd, hint)
+	WAVE/T files, dels; String cmd, hint
+	// Make matrix from filenames and sort it
+	Variable loaded, i
+	for(loaded = 0, i = 0 ; loaded < DimSize(files, 0) ;i += 1)
+		WAVE/T matrix = JoinRows( SortRows( FileNameMatrix(i, files, dels, hint) ) )
 		
-		for(j=0;j<DimSize(matrix,0);j+=1) // Load each file
-			Make/FREE/T/N=(DimSize(matrix,1)) words = matrix[j][p]
-			MakeFolderAndLoad(path[j],words,ml.command)
+		Variable j,N = DimSize(matrix, 1)
+		for(j = 0; j < N; j += 1)
+			// Make a data folder
+			Make/FREE/T/N=(DimSize(matrix, 0)) folders = matrix[p][j]
+			String folder = MakeDataFolder(folders)
+			
+			DFREF here = GetDataFolderDFR()
+			SetDataFolder $folder
+			
+			// Load the file
+			String path = StringFromList(j,note(matrix),"\r")
+			Execute/Z ExpandExpr(cmd, path)
+			print GetErrMessage(V_Flag)
+			
+			SetDataFolder here
+			loaded += 1		
 		endfor
 	endfor
 End
 
 // Make a folder and load waves 
-static Function MakeFolderAndLoad(path,words,command)
-	String path,command; WAVE/T words
+static Function/S MakeDataFolder(folders)
+	WAVE/T folders
 	DFREF here = GetDataFolderDFR()
-	Variable i,N=DimSize(words,0)
+	Variable i,N=DimSize(folders,0)
 	for(i=0;i<N;i+=1)
-		Execute/Z/Q "NewDataFolder/O/S "+PossiblyQuoteName(RenameToIgorFolderName(words[i]))
+		Execute/Z/Q "NewDataFolder/O/S :"+PossiblyQuoteName(RenameToIgorFolderName(folders[i]))
+		print "NewDataFolder/O/S :"+PossiblyQuoteName(RenameToIgorFolderName(folders[i]))
 	endfor
-	Load(path,command)
+	String path = GetDataFolder(1)
 	SetDataFolder here
+	return path
 End
-static Function Load(path,command)
-	String path,command
-	command = ExpandExpr(command,"%B","%%","\""+basename(path) +"\"")
-	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
-	command = ExpandExpr(command,"%E","%%","\""+extension(path)+"\"")
-	command = ExpandExpr(command,"%F","%%","\""+filename(path) +"\"")
-	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
-	command = ReplaceString("%%",command,"%")
-	Execute/Z command
-//	print GetErrMessage(V_Flag)
-End
-static Function/S ExpandExpr(s,expr,esc,repl)
-	String s,expr,esc,repl
-	String head,body,tail
-	SplitString/E="(.*?)("+esc+"|"+expr+")(.*)" s,head,body,tail
-	if(strlen(body)==0)
-		return s
-	elseif(GrepString(body,esc))
-		return head+esc +ExpandExpr(tail,expr,esc,repl)
-	else
-		return head+repl+ExpandExpr(tail,expr,esc,repl)
-	endif
-End
+
+
 static Function/S RenameToIgorFolderName(name)
 	String name
 	name=ReplaceString(";" ,name,""); name=ReplaceString(":" ,name,"")
@@ -203,138 +208,154 @@ static Function/S Truncate(name)
 End
 
 // Make message in an 'open file' dialog
-static Function/S ExtensionFlag(ml)
-	STRUCT Multiload &ml
-	if(ItemsInList(ml.extensions)==0)
+static Function/S ExtFlag(exts, type)
+	WAVE/T exts; String type
+	
+	if(DimSize(exts,0) == 0)
 		return "All Files (*.*):.*;"
 	endif
-	Variable i,N=ItemsInList(ml.extensions); String exts1="",exts2=""
-	for(i=0;i<N;i+=1)
-		String ext = StringFromList(i,ml.extensions)
-		exts1 += "*"+SelectString(cmpstr(ext[0],"."),"",".")+ext+","
-		exts2 += SelectString(cmpstr(ext[0],"."),"",".")+ext+","
+	
+	String exts1="", exts2=""
+	Variable i,N=DimSize(exts,0)
+	for(i = 0; i < N; i += 1)
+		String ext = SelectString(StringMatch(exts,".*"),".","")+exts[i]+","
+		exts1 += "*"+ext
+		exts2 += ext
 	endfor
 	exts1=RemoveEnding(exts1,",")
 	exts2=RemoveEnding(exts2,",")
-	String msg
-	if(strlen(ml.filetype))
-		sprintf msg, "%s (%s):%s;All Files (*.*):.*;", ml.filetype, exts1, exts2
-	else
-		sprintf msg, "(%s):%s;All Files (*.*):.*;", exts1, exts2
-	endif
+	
+	String msg = SelectString(strlen(type),"",type+" ")
+	sprintf msg, "%s(%s):%s;All Files (*.*):.*;", msg, exts1, exts2
 	return msg
 End
 
 // Joint rows whose items have the same order 
 static Function/WAVE JoinRows(matrix)
 	WAVE/T matrix
-	Make/FREE/T/N=0 empty
-	WAVE/T buf=JoinRows_(empty,matrix)
-	if(DimSize(buf,1)==0)
-		Make/FREE/T/N=(DimSize(buf,0),1) buf2=buf[p]
-		return buf2
-	else
-		return buf
-	endif
-End
-static Function/WAVE JoinRows_(accum,matrix)
-	WAVE/T accum,matrix
-	Duplicate/FREE/T accum,buf
-	Duplicate/FREE/T/R=[0,inf][0,  0] matrix,head
-	Duplicate/FREE/T/R=[0,inf][1,inf] matrix,tail
-	Variable i,N=numpnts(buf) ? max(1,DimSize(buf,1)) : 0 ,matched=0
-	for(i=0;i<N;i+=1)
-		Make/FREE/T/N=(DimSize(buf,0)) w1=buf[p][i]
-		Make/FREE/T/N=(DimSize(buf,0)) w2=buf[p][i]+"_"+head[p]
-		Make/FREE/N=(DimSize(buf,0)) len=strlen(w2)	
-		if(NumberOfUniqueItems(w1)==NumberOfUniqueItems(w2) && WaveMax(len)<32 )
-			matched=1
-			buf[][i]=w2
-			break
-		endif
+	Variable N0 = DimSize(matrix, 0), N1 = DimSize(matrix, 1)
+	Make/FREE/T/N=(0, N1) joined
+	
+	Variable i
+	for(i = 0; i < N0; i += 1)
+		Make/FREE/T/N=(N1) ref = matrix[i][p]
+		InsertPoints/M=0 DimSize(joined,1), 1, joined
+		joined[DimSize(joined, 0) - 1][] = ref[q]
+
+		Variable j
+		for(j = i+1; j < N0; j += 1)
+			Make/FREE/T/N=(N1) buf = matrix[j][p]
+			if( DimSize(Unique(ref), 0) == DimSize(Unique(buf), 0) )
+				joined[DimSize(joined, 0) - 1][] += "_"+buf[q]
+				i += 1
+			endif			
+		endfor
+
 	endfor
-	if(matched==0)
-		Concatenate/T {head},buf
-	endif
-	if(DimSize(matrix,1)<2)
-		return buf
-	endif
-	return JoinRows_(buf,tail)
+	
+	Note joined note(matrix)
+	return joined	
 End
 
 // Sort rows by number of unique items
 static Function/WAVE SortRows(matrix)
 	WAVE/T matrix
-	Make/FREE/T/N=0 buf
-	Variable i,j
-	for(i=1;i<=DimSize(matrix,0);i+=1)
-		for(j=0;j<DimSize(matrix,1);j+=1)
-			Make/FREE/T/N=(DimSize(matrix,0)) w=matrix[p][j]
-			if(i==NumberOfUniqueItems(w))
-				Concatenate/T {w},buf
+	Duplicate/FREE/T matrix sorted
+	
+	Variable count = 0
+	Variable i, Ni = DimSize(matrix,1)
+	for(i = 1; i <= Ni; i += 1)
+
+		Variable j, Nj = DimSize(matrix,0)
+		for(j = 0; j < Nj; j += 1)
+			Make/FREE/T/N=(DimSize(matrix,1)) w=matrix[j][p]
+			if(i == DimSize(Unique(w), 0))
+				sorted[count][] = w[q]
+				count += 1
 			endif
 		endfor
+
 	endfor
-	return buf
-End
-static Function NumberOfUniqueItems(w)
-	WAVE/T w
-	if(DimSize(w,0))
-		Extract/T/FREE w,f,cmpstr(w[0],w)
-		return 1+NumberOfUniqueItems(f)
-	endif
-	return 0
+
+	return sorted
 End
 
+static Function/WAVE Unique(w)
+	WAVE/T w
+	if(DimSize(w,0))
+		Make/FREE/T head = {w[0]}
+		Extract/T/FREE w, tail, cmpstr(w[0],w)
+		Concatenate/T/NP {Unique(tail)}, head
+		return head
+	endif
+	Make/FREE/T/N=0 f
+	return f
+End
+
+
 // Convert filenames into text wave matrix
-// (fullpaths are written in the wavenote)
-static Function/WAVE GetWords(line,delimiters)
-	String line, delimiters
-	Variable i,N=ItemsInList(delimiters)
-	for(i=0;i<N;i+=1)
-		line = ReplaceString(StringFromList(i,delimiters),line,"\r")
+
+static Function/WAVE FileNameMatrix(num, files, dels, hint)
+	Variable num; WAVE/T files, dels; String hint
+	Make/FREE/T/N=0 matrix
+	Variable i,N = DimSize(files, 0)
+	for(i = 0; i < N; i += 1)
+		WAVE/T w = SplitLine(EvalString(ExpandExpr(hint, files[i])), dels)
+		if(DimSize(w,0) == num)
+			Concatenate/T {w}, matrix
+			Note matrix, files[i]
+		endif
 	endfor
-	Make/FREE/T/N=(ItemsInList(line,"\r")) w=StringFromList(p,line,"\r")
+	return matrix
+End
+
+static Function/WAVE SplitLine(line, dels)
+	String line; WAVE/T dels
+	Variable i,N = DimSize(dels,0)
+	for(i = 0; i < N; i += 1)
+		line = ReplaceString(dels[i], line, "\r")
+	endfor
+	Make/FREE/T/N=(ItemsInList(line,"\r")) w = StringFromList(p, line, "\r")
 	return w
 End
-static Function NumberOfWords(line,delimiters)
-	String line, delimiters
-	return DimSize(GetWords(line,delimiters),0)
+
+// Evaluate expression as a string 
+static Function/S EvalString(expr)
+	String expr
+ 	DFREF here = GetDataFolderDFR()
+ 	SetDataFolder NewFreeDataFolder()
+ 	try
+		Execute/Z "String S_Value="+expr
+	 	SVAR S_Value
+ 		String s = S_Value 
+ 		SetDataFolder here
+ 	catch
+	 	SetDataFolder here	
+ 	endtry
+ 	return s
 End
-static Function MaximumNumberOfWords(ml)
-	STRUCT MultiLoad &ml
-	Make/FREE/T/N=(ItemsInList(ml.filenames,"\r")) path=StringFromList(p,ml.filenames,"\r")
-	Make/FREE/N=(DimSize(path,0)) num=NumberOfWords(Hint(path,ml.dirhint),ml.delimiters)
-	return WaveMax(num)
+
+// Expand special characters
+static Function/S ExpandExpr(expr, path)
+	String path, expr
+	expr = ExpandExpr1(expr, "%B", "%%", "\"" + basename(path)  + "\"")
+	expr = ExpandExpr1(expr, "%D", "%%", "\"" + dirname(path)   + "\"")
+	expr = ExpandExpr1(expr, "%E", "%%", "\"" + extension(path) + "\"")
+	expr = ExpandExpr1(expr, "%F", "%%", "\"" + filename(path)  + "\"")
+	expr = ExpandExpr1(expr, "%P", "%%", "\"" + path            + "\"")
+	expr = ReplaceString("%%",expr,"%")
+	return expr
 End
-static Function/S Hint(path,command)
-	String path,command
-	command = ExpandExpr(command,"%B","%%","\""+basename(path) +"\"")
-	command = ExpandExpr(command,"%D","%%","\""+dirname(path)  +"\"")
-	command = ExpandExpr(command,"%E","%%","\""+extension(path)+"\"")
-	command = ExpandExpr(command,"%F","%%","\""+filename(path) +"\"")
-	command = ExpandExpr(command,"%P","%%","\""+path           +"\"")
-	command = ReplaceString("%%",command,"%")
-	DFREF here = GetDataFolderDFR()
-	SetDataFolder NewFreeDataFolder()
-	Execute/Z "String S_Hint="+command
-	SVAR S_Hint; String hint=S_Hint 
-	SetDataFolder here
-	return hint
-End
-static Function/WAVE GetMatrixByNumberOfWords(ml,num)
-	STRUCT MultiLoad &ml; Variable num
-	Make/FREE/T/N=(ItemsInList(ml.filenames,"\r")) path=StringFromList(p,ml.filenames,"\r")
-	Extract/T/FREE path,path,num==NumberOfWords(Hint(path,ml.dirhint),ml.delimiters)
-	Variable i,j,N=DimSize(path,0); Make/FREE/T/N=(N,num) buf
-	for(i=0;i<N;i+=1)
-		Note buf,path[i]
-		WAVE/T words = GetWords(Hint(path[i],ml.dirhint),ml.delimiters)
-		for(j=0;j<num;j+=1)
-			buf[i][j] = words[j]
-		endfor
-	endfor
-	return buf
+
+// Expand one special character
+static Function/S ExpandExpr1(s,expr,esc,repl)
+	String s,expr,esc,repl
+	String head,body,tail
+	SplitString/E="(.*?)("+esc+"|"+expr+")(.*)" s,head,body,tail
+	if(strlen(body)==0)
+		return s
+	endif
+	return head + SelectString(GrepString(body,esc), repl, esc) + ExpandExpr1(tail,expr,esc,repl)
 End
 
 // extension
