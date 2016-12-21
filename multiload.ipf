@@ -314,7 +314,13 @@ static Function/WAVE FileNameMatrix(num, files, dels, hint)
 			Note matrix, files[i]
 		endif
 	endfor
-	return matrix
+	if(DimSize(matrix, 1) == 0)
+		Make/FREE/T/N=(DimSize(matrix,0), 1) buf = matrix
+		Note buf, note(matrix)
+		return buf 
+	else
+		return matrix
+	endif
 End
 
 // Split a string with delimiters
