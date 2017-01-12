@@ -9,7 +9,7 @@ strconstant Multiload_Menu="Multiload"
 Function Multiload_Standard_Setting()
 	STRUCT Multiload ml
 	ml.command    = "LoadWave/A/D/G/Q %P; KillVariables/Z V_Flag; KillStrings/Z S_waveNames"
-	ml.dirhint    = "%B"
+	ml.dirhint    = "%B" // filename used to make directory-hierarchy in Igor
 	ml.filetype   = "Data Files"
 	ml.extensions = ".dat;.txt"
 	ml.delimiters = "_; "
@@ -48,9 +48,9 @@ End
 
 // <<NOTE>>
 // Special Characters for ml.command and ml.dirhint
-// %B : basename (filename without its extension)
-// %D : directory (pathname without a filename)
-// %E : extention (without a dot)
+// %B : basename (filename without extension)
+// %D : directory (path without filename)
+// %E : extention
 // %F : filename (=%B+"."+%E)
 // %P : fullpath
 
@@ -146,6 +146,7 @@ Function Multiload(ml)
 		dels = StringFromList(p,ml.delimiters)
 	endif
 
+	
 	// Get filenames by dialog	
 	Open/D/R/MULT=1/F=ExtFlag(exts, type) refnum
 	if(strlen(S_FileName) == 0)
@@ -158,14 +159,11 @@ End
 
 static Function MultiLoadImplement(files, dels, cmd, hint)
 	WAVE/T files, dels; String cmd, hint
-
 	// Make matrix from filenames and sort it
 	Variable loaded, i
 	for(loaded = 0, i = 0 ; loaded < DimSize(files, 0) ;i += 1)
 		WAVE/T matrix = JoinRows( SortRows( FileNameMatrix(i, files, dels, hint) ) )
 		loaded += ItemsInList(note(matrix),"\r")
-		
-		WAVE dbg = FileNameMatrix(i, files, dels, hint)
 		
 		Variable j,N = DimSize(matrix, 1)
 		for(j = 0; j < N; j += 1)
@@ -193,21 +191,12 @@ static Function/S MakeDataFolder(folders)
 	DFREF here = GetDataFolderDFR()
 	Variable i,N=DimSize(folders,0)
 	for(i=0;i<N;i+=1)
-		String name = RenameToIgorFolderName(folders[i])
-		if(DataFolderExists(name))
-			name = UniqueName(name, 11, 0)
-		endif
-
-		Execute/Z/Q "NewDataFolder/O/S :"+PossiblyQuoteName(name)
+		Execute/Z/Q "NewDataFolder/O/S :"+PossiblyQuoteName(RenameToIgorFolderName(folders[i]))
 	endfor
 	String path = GetDataFolder(1)
 	SetDataFolder here
 	return path
 End
-
-static Function UniqueDFName(name)
-	String name
-End 
 
 // Replace characters which are unavailable for Igor Pro folder path
 static Function/S RenameToIgorFolderName(name)
@@ -220,7 +209,7 @@ End
 // Shorten too long path name
 static Function/S Truncate(name)
 	String name
-	return name[0,29]
+	return name[0,30]
 End
 
 // Make message in an 'open file' dialog
@@ -316,7 +305,6 @@ End
 // Convert filenames into text wave matrix
 static Function/WAVE FileNameMatrix(num, files, dels, hint)
 	Variable num; WAVE/T files, dels; String hint
-	
 	Make/FREE/T/N=0 matrix
 	Variable i,N = DimSize(files, 0)
 	for(i = 0; i < N; i += 1)
